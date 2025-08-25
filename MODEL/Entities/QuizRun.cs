@@ -20,6 +20,9 @@ namespace MODEL.Entities
         public string CycleOrderCsv { get; set; } = ""; 
         public int CycleIndex { get; set; } = 0;
 
+        public bool IsPractice { get; set; } = false;   
+        public int? SourceRunId { get; set; }
+
         public int SeedCount { get; set; }
         public string SeedWordIdsCsv { get; set; } = "";
     }

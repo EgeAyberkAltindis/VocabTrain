@@ -21,7 +21,7 @@ namespace BLL.Services.Concretes
     public class QuizService : IQuizService
     {
         private readonly IUnitOfWork _uow;
-        private readonly Random _rng = new Random();
+       
 
         public QuizService(IUnitOfWork uow)
         {
@@ -32,13 +32,11 @@ namespace BLL.Services.Concretes
         {
             if (req.SeedCount < 1) req.SeedCount = 10;
 
-            // 1) Seed: önce hiç sorulmamışlar
             var seedIds = await SelectSeedEnglishWordIdsAsync(req.WordListId, req.SeedCount, ct);
-            if (seedIds.Count == 0) throw new InvalidOperationException("Seçilen listede hiç kelime yok.");
+            if (seedIds.Count == 0) throw new InvalidOperationException("Seçilen listede kelime yok.");
 
-            // 2) İlk turun sırasını rastgele belirle
-            var cycleOrder = seedIds.ToList();
-            ShuffleInPlace(cycleOrder);
+            var cycle = seedIds.ToList();
+            ShuffleInPlace(cycle);
 
             var run = new QuizRun
             {
@@ -46,8 +44,10 @@ namespace BLL.Services.Concretes
                 Mode = req.Mode,
                 SeedCount = seedIds.Count,
                 SeedWordIdsCsv = string.Join(",", seedIds),
-                CycleOrderCsv = string.Join(",", cycleOrder),
+                CycleOrderCsv = string.Join(",", cycle),
                 CycleIndex = 0,
+                IsPractice = false,
+                SourceRunId = null,
                 StartedAt = DateTime.UtcNow
             };
 
@@ -58,26 +58,20 @@ namespace BLL.Services.Concretes
         }
 
 
+
         // 🔹 Basit seçim: Seçilen listenin kelimeleri arasından TimesShown en düşük olanı getirir (eşitlikte rastgele).
         public async Task<QuizQuestionDto?> GetNextQuestionAsync(int quizRunId, CancellationToken ct = default)
         {
             var run = await _uow.QuizRuns.GetByIdAsync(quizRunId, ct);
             if (run == null || string.IsNullOrWhiteSpace(run.SeedWordIdsCsv)) return null;
 
-            var seed = run.SeedWordIdsCsv
-                .Split(',', StringSplitOptions.RemoveEmptyEntries)
-                .Select(s => int.TryParse(s, out var id) ? id : 0)
-                .Where(id => id > 0)
-                .ToList();
+            var seed = (run.SeedWordIdsCsv ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => int.TryParse(s, out var id) ? id : 0).Where(id => id > 0).ToList();
             if (seed.Count == 0) return null;
 
-            var cycle = (run.CycleOrderCsv ?? "")
-                .Split(',', StringSplitOptions.RemoveEmptyEntries)
-                .Select(s => int.TryParse(s, out var id) ? id : 0)
-                .Where(id => id > 0)
-                .ToList();
+            var cycle = (run.CycleOrderCsv ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => int.TryParse(s, out var id) ? id : 0).Where(id => id > 0).ToList();
 
-            // Koruma: cycle yoksa seed'i karıştır ve başlat
             if (cycle.Count != seed.Count)
             {
                 cycle = seed.ToList();
@@ -87,13 +81,12 @@ namespace BLL.Services.Concretes
                 await _uow.SaveChangesAsync(ct);
             }
 
-            // Tüm seed bir kez sorulduysa → yeni tur için farklı bir shuffle üret
             if (run.CycleIndex >= cycle.Count)
             {
                 var newOrder = seed.ToList();
                 int safety = 0;
                 do { ShuffleInPlace(newOrder); safety++; }
-                while (safety < 5 && Enumerable.SequenceEqual(newOrder, cycle)); // öncekiyle aynı olmasın
+                while (safety < 5 && Enumerable.SequenceEqual(newOrder, cycle));
 
                 cycle = newOrder;
                 run.CycleOrderCsv = string.Join(",", cycle);
@@ -101,14 +94,10 @@ namespace BLL.Services.Concretes
                 await _uow.SaveChangesAsync(ct);
             }
 
-            // Sıradaki hedef
             var targetId = cycle[run.CycleIndex];
-
-            // İlerle ve kaydet
             run.CycleIndex++;
             await _uow.SaveChangesAsync(ct);
 
-            // Soruyu üret (çeldiriciler mümkünse seed'den)
             return await BuildQuestionDto(run.Mode, targetId, seed, ct);
         }
 
@@ -228,7 +217,6 @@ namespace BLL.Services.Concretes
         }
 
 
-
         public async Task<SubmitAnswerResult> SubmitAnswerAsync(SubmitAnswerRequest request, CancellationToken ct = default)
         {
             var run = await _uow.QuizRuns.GetByIdAsync(request.QuizRunId, ct)
@@ -333,9 +321,6 @@ namespace BLL.Services.Concretes
         }
 
         
-
-        
-
         private async Task<string?> GetPrimaryTurkishTextAsync(int englishWordId, CancellationToken ct)
         {
             var primary = await _uow.WordTranslations.GetPrimaryAsync(englishWordId, ct);
@@ -363,45 +348,7 @@ namespace BLL.Services.Concretes
                       ?? throw new InvalidOperationException("Quiz run not found.");
             return run.Mode;
         }
-        public async Task<WordHintDto> GetHintsAsync(int englishWordId, CancellationToken ct = default)
-        {
-            // TR anlamlar (primary önce)
-            var trList = await _uow.WordTranslations.Query()
-                .Where(t => t.EnglishWordId == englishWordId)
-                .Include(t => t.TurkishWord)
-                .OrderByDescending(t => t.IsPrimary)
-                .ThenBy(t => t.Id)
-                .Select(t => t.TurkishWord.Text)
-                .ToListAsync(ct);
-
-            // Eş anlamlar (iki yön)
-            var synFrom = await _uow.EnglishWordRelations.Query()
-                .Where(r => r.EnglishWordId == englishWordId)
-                .Include(r => r.RelatedEnglishWord)
-                .Select(r => r.RelatedEnglishWord.Text)
-                .ToListAsync(ct);
-
-            var synTo = await _uow.EnglishWordRelations.Query()
-                .Where(r => r.RelatedEnglishWordId == englishWordId)
-                .Include(r => r.EnglishWord)
-                .Select(r => r.EnglishWord.Text)
-                .ToListAsync(ct);
-
-            var dto = new WordHintDto
-            {
-                Meanings = trList
-                    .Where(s => !string.IsNullOrWhiteSpace(s))
-                    .Distinct(System.StringComparer.OrdinalIgnoreCase)
-                    .ToList(),
-                Synonyms = synFrom.Concat(synTo)
-                    .Where(s => !string.IsNullOrWhiteSpace(s))
-                    .Distinct(System.StringComparer.OrdinalIgnoreCase)
-                    .OrderBy(s => s)
-                    .ToList()
-            };
-
-            return dto;
-        }
+        
         public async Task<WordHintDto> GetHintsAsync(int quizRunId, int englishWordId, CancellationToken ct = default)
         {
             var run = await _uow.QuizRuns.GetByIdAsync(quizRunId, ct)
@@ -452,28 +399,26 @@ namespace BLL.Services.Concretes
         {
             seedCount = Math.Max(1, seedCount);
 
-            // 1) Bu listenin tüm İngilizce kelimeleri (Id + Text) — tek, basit sorgu
+            // 1) Bu listenin kelimeleri (Id, Text)
             var words = await (
                 from i in _uow.WordListItems.Query().AsNoTracking()
                 where i.WordListId == wordListId
-                join w in _uow.EnglishWords.Query().AsNoTracking()
-                    on i.EnglishWordId equals w.Id
+                join w in _uow.EnglishWords.Query().AsNoTracking() on i.EnglishWordId equals w.Id
                 select new { w.Id, w.Text }
             )
             .Distinct()
             .ToListAsync(ct);
 
             if (words.Count == 0) return new List<int>();
-
             var wordIds = words.Select(x => x.Id).ToList();
 
-            // 2) Bu listeye ait geçmiş denemelerde söz konusu kelimelerin toplam kaç kez sorulduğu
+            // 2) Bu listenin geçmiş denemelerinde (practice hariç) bu kelimeler kaç kez sorulmuş?
             var counts = await (
                 from a in _uow.QuizAttempts.Query().AsNoTracking()
-                join r in _uow.QuizRuns.Query().AsNoTracking()
-                    on a.QuizRunId equals r.Id
+                join r in _uow.QuizRuns.Query().AsNoTracking() on a.QuizRunId equals r.Id
                 where r.WordListId == wordListId
-                   && wordIds.Contains(a.EnglishWordId)        // yalnız bu listenin kelimeleri
+                   && !r.IsPractice
+                   && wordIds.Contains(a.EnglishWordId)
                 group a by a.EnglishWordId into g
                 select new { Id = g.Key, Shown = g.Count() }
             )
@@ -481,15 +426,132 @@ namespace BLL.Services.Concretes
 
             var countMap = counts.ToDictionary(x => x.Id, x => x.Shown);
 
-            // 3) Sıralama: önce en az sorulan, eşitlikte alfabetik (deterministik)
-            var ordered = words
+            // 3) Önce en az sorulan, eşitlikte alfabetik
+            return words
                 .OrderBy(w => countMap.TryGetValue(w.Id, out var c) ? c : 0)
                 .ThenBy(w => w.Text, StringComparer.CurrentCultureIgnoreCase)
                 .Take(seedCount)
                 .Select(w => w.Id)
                 .ToList();
-
-            return ordered;
         }
+
+        public async Task<StartQuizResult> StartFromSeedAsync(StartFromSeedRequest req, CancellationToken ct = default)
+        {
+            if (req.SeedIds == null || req.SeedIds.Count == 0)
+                throw new InvalidOperationException("Seed boş olamaz.");
+
+            var cycle = req.SeedIds.ToList();
+            ShuffleInPlace(cycle);
+
+            var run = new QuizRun
+            {
+                WordListId = req.WordListId,
+                Mode = req.Mode,
+                SeedCount = req.SeedIds.Count,
+                SeedWordIdsCsv = string.Join(",", req.SeedIds),
+                CycleOrderCsv = string.Join(",", cycle),
+                CycleIndex = 0,
+                IsPractice = req.IsPractice,
+                SourceRunId = req.SourceRunId,
+                StartedAt = DateTime.UtcNow
+            };
+
+            await _uow.QuizRuns.AddAsync(run, ct);
+            await _uow.SaveChangesAsync(ct);
+
+            return new StartQuizResult { QuizRunId = run.Id, WordListId = run.WordListId, Mode = run.Mode };
+        }
+
+        public async Task<List<QuizRunSummaryDto>> GetRecentRunsAsync(int take = 20, CancellationToken ct = default)
+        {
+            var runs = await _uow.QuizRuns.Query().AsNoTracking()
+                .OrderByDescending(r => r.StartedAt).Take(take).ToListAsync(ct);
+
+            var listIds = runs.Select(r => r.WordListId).Distinct().ToList();
+            var lists = await _uow.WordLists.Query().AsNoTracking()
+                .Where(l => listIds.Contains(l.Id))
+                .Select(l => new { l.Id, l.Name })
+                .ToListAsync(ct);
+            var listMap = lists.ToDictionary(x => x.Id, x => x.Name);
+
+            var runIds = runs.Select(r => r.Id).ToList();
+            var stats = await _uow.QuizAttempts.Query().AsNoTracking()
+                .Where(a => runIds.Contains(a.QuizRunId))
+                .GroupBy(a => a.QuizRunId)
+                .Select(g => new { RunId = g.Key, Total = g.Count(), Correct = g.Count(x => x.IsCorrect), Wrong = g.Count(x => !x.IsCorrect) })
+                .ToListAsync(ct);
+            var statMap = stats.ToDictionary(x => x.RunId, x => x);
+
+            return runs.Select(r => new QuizRunSummaryDto
+            {
+                QuizRunId = r.Id,
+                ListName = listMap.TryGetValue(r.WordListId, out var n) ? n : $"List {r.WordListId}",
+                StartedAt = r.StartedAt,
+                FinishedAt = r.FinishedAt,
+                IsPractice = r.IsPractice,
+                Mode = r.Mode,
+                SeedCount = r.SeedCount,
+                TotalShown = statMap.TryGetValue(r.Id, out var s) ? s.Total : 0,
+                Correct = statMap.TryGetValue(r.Id, out var s1) ? s1.Correct : 0,
+                Wrong = statMap.TryGetValue(r.Id, out var s2) ? s2.Wrong : 0
+            }).ToList();
+        }
+
+        public async Task<QuizRunDetailDto> GetRunDetailAsync(int quizRunId, CancellationToken ct = default)
+        {
+            var run = await _uow.QuizRuns.GetByIdAsync(quizRunId, ct)
+                      ?? throw new InvalidOperationException("Koşu bulunamadı.");
+            var list = await _uow.WordLists.GetByIdAsync(run.WordListId, ct);
+
+            var seed = (run.SeedWordIdsCsv ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => int.TryParse(s, out var id) ? id : 0).Where(id => id > 0).ToList();
+
+            var atts = await _uow.QuizAttempts.Query().AsNoTracking()
+                .Where(a => a.QuizRunId == quizRunId)
+                .GroupBy(a => a.EnglishWordId)
+                .Select(g => new { Id = g.Key, Shown = g.Count(), Correct = g.Count(x => x.IsCorrect), Wrong = g.Count(x => !x.IsCorrect) })
+                .ToListAsync(ct);
+
+            var words = await _uow.EnglishWords.Query().AsNoTracking()
+                .Where(w => seed.Contains(w.Id))
+                .Select(w => new { w.Id, w.Text })
+                .ToListAsync(ct);
+            var textMap = words.ToDictionary(x => x.Id, x => x.Text);
+
+            var rows = seed.Select(id =>
+            {
+                var s = atts.FirstOrDefault(x => x.Id == id);
+                return new QuizRunDetailDto.WordAttemptRow
+                {
+                    EnglishWordId = id,
+                    English = textMap.TryGetValue(id, out var t) ? t : $"#{id}",
+                    Shown = s?.Shown ?? 0,
+                    Correct = s?.Correct ?? 0,
+                    Wrong = s?.Wrong ?? 0
+                };
+            }).ToList();
+
+            return new QuizRunDetailDto
+            {
+                QuizRunId = run.Id,
+                WordListId = run.WordListId,
+                ListName = list?.Name ?? $"List {run.WordListId}",
+                IsPractice = run.IsPractice,
+                Mode = run.Mode,
+                SeedIds = seed,
+                Words = rows
+            };
+        }
+
+        public async Task SetRunPracticeAsync(int quizRunId, bool isPractice, CancellationToken ct = default)
+        {
+            var run = await _uow.QuizRuns.GetByIdAsync(quizRunId, ct)
+                      ?? throw new InvalidOperationException("Koşu bulunamadı.");
+            run.IsPractice = isPractice;
+            await _uow.SaveChangesAsync(ct);
+        }
+
+
+
     }
 }

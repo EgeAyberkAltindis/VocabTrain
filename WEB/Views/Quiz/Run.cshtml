@@ -1,0 +1,50 @@
+﻿@model BLL.DTO.QuizRunDetailDto
+@{
+    ViewData["Title"] = "Quiz Detayı";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h5>@Model.ListName – Koşu #@Model.QuizRunId (@Model.Mode)</h5>
+    <div class="d-flex gap-2">
+        <form asp-action="Replay" method="post">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="id" value="@Model.QuizRunId" />
+            <button class="btn btn-primary btn-sm">Aynı seed ile tekrar</button>
+        </form>
+        <form asp-action="Replay" method="post">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="id" value="@Model.QuizRunId" />
+            <input type="hidden" name="practice" value="true" />
+            <button class="btn btn-outline-primary btn-sm">Alıştırma olarak tekrar</button>
+        </form>
+        <form asp-action="MarkPractice" method="post">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="id" value="@Model.QuizRunId" />
+            <input type="hidden" name="value" value="@(!Model.IsPractice)" />
+            <button class="btn btn-outline-warning btn-sm">@(Model.IsPractice ? "Gerçek say" : "Alıştırma say")</button>
+        </form>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-header">Kelime Performansı</div>
+    <div class="table-responsive">
+        <table class="table table-striped align-middle mb-0">
+            <thead><tr><th>#</th><th>English</th><th>Gösterim</th><th>Doğru</th><th>Yanlış</th></tr></thead>
+            <tbody>
+                @for (int i = 0; i < Model.Words.Count; i++)
+                {
+                    var w = Model.Words[i];
+                    <tr>
+                        <td>@(i + 1)</td>
+                        <td>@w.English</td>
+                        <td>@w.Shown</td>
+                        <td class="text-success">@w.Correct</td>
+                        <td class="text-danger">@w.Wrong</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+

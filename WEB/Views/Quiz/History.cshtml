@@ -1,0 +1,31 @@
+﻿@model List<BLL.DTO.QuizRunSummaryDto>
+@{
+    ViewData["Title"] = "Geçmiş Quizler";
+}
+<div class="card shadow-sm">
+    <div class="card-header">Geçmiş Quizler</div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead><tr><th>Tarih</th><th>Liste</th><th>Mod</th><th>Tohum</th><th>Gösterim</th><th>Doğru</th><th>Yanlış</th><th>Tür</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var r in Model)
+                {
+                    <tr>
+                        <td>@r.StartedAt.ToLocalTime().ToString("g")</td>
+                        <td>@r.ListName</td>
+                        <td>@r.Mode</td>
+                        <td>@r.SeedCount</td>
+                        <td>@r.TotalShown</td>
+                        <td class="text-success">@r.Correct</td>
+                        <td class="text-danger">@r.Wrong</td>
+                        <td>@(r.IsPractice ? "Alıştırma" : "Gerçek")</td>
+                        <td class="text-end">
+                            <a class="btn btn-sm btn-outline-secondary" asp-action="Run" asp-route-id="@r.QuizRunId">Detay</a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+

@@ -1,4 +1,5 @@
 ﻿
+using BLL.DTO;
 using BLL.Services.Abstract;
 using Microsoft.AspNetCore.Mvc;
 using MODEL.Entities;
@@ -114,6 +115,45 @@ namespace WEB.Controllers
         {
             var hints = await _quizService.GetHintsAsync(quizRunId, englishWordId, ct);
             return Json(hints); // { meanings:[], synonyms:[] }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> History(CancellationToken ct)
+        {
+            var runs = await _quizService.GetRecentRunsAsync(20, ct);
+            return View(runs);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> Run(int id, CancellationToken ct)
+        {
+            var vm = await _quizService.GetRunDetailAsync(id, ct);
+            return View(vm);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Replay(int id, bool practice = false, CancellationToken ct = default)
+        {
+            var src = await _quizService.GetRunDetailAsync(id, ct);
+            var res = await _quizService.StartFromSeedAsync(new StartFromSeedRequest
+            {
+                WordListId = src.WordListId,
+                Mode = src.Mode,
+                SeedIds = src.SeedIds,
+                IsPractice = practice,
+                SourceRunId = id
+            }, ct);
+
+            return RedirectToAction(nameof(Play), new { quizRunId = res.QuizRunId, wordListId = res.WordListId });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> MarkPractice(int id, bool value, CancellationToken ct)
+        {
+            await _quizService.SetRunPracticeAsync(id, value, ct);
+            return RedirectToAction(nameof(Run), new { id });
         }
 
 
