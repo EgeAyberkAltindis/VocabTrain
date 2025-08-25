@@ -1,0 +1,89 @@
+﻿@{
+    var title = ViewData["Title"] as string ?? "KelimeProjesi";
+}
+<!doctype html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>@title</title>
+
+    
+    <!-- Opsiyonel: Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootswatch@5.3.3/dist/lux/bootstrap.min.css" rel="stylesheet" />
+
+    <!-- Opsiyonel minik dokunuşlar -->
+    <style>
+        
+        .card-header {
+            background: linear-gradient(180deg, rgba(255,255,255,.6), rgba(255,255,255,0));
+            font-weight: 600;
+        }
+
+        .list-group-item.active {
+            font-weight: 600;
+        }
+
+        .badge {
+            padding: .45em .6em;
+        }
+
+        /* QUIZ okunabilirlik */
+        .quiz-prompt { /* sorulan kelime */
+            font-size: 2rem; /* büyütüldü */
+            font-weight: 700; /* kalın */
+            letter-spacing: .2px;
+        }
+
+      
+        .quiz-feedback {
+            position: sticky;
+            top: 0;
+            z-index: 5;
+        }
+    
+
+        .quiz-option { /* şıkların satırı */
+            font-size: 1.15rem; /* büyütüldü */
+            border: 1px solid rgba(0,0,0,.08) !important;
+            margin-bottom: .5rem;
+            border-radius: .5rem;
+        }
+
+            .quiz-option:hover {
+                background-color: rgba(0,0,0,.03);
+            }
+
+            .quiz-option .form-check-input {
+                transform: scale(1.2);
+            }
+        /* radio büyütme */
+    </style>
+
+</head>
+<body>
+    <header>
+        @await Html.PartialAsync("_Navbar")
+    </header>
+
+    <main class="container py-4">
+        @RenderBody()
+    </main>
+
+    <footer class="border-top py-3 mt-5">
+        <div class="container text-muted small">
+            KelimeProjesi • @DateTime.Now.Year
+        </div>
+    </footer>
+
+    <!-- jQuery (validation için) -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    @RenderSection("Scripts", required: false)
+</body>
+</html>
+

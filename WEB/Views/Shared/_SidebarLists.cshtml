@@ -1,0 +1,19 @@
+﻿@model List<BLL.DTO.ListWithCountDto>
+@{
+    var selectedId = ViewBag.SelectedListId as int?;
+}
+<div class="card shadow-sm border-0">
+    <div class="card-header">Listeler</div>
+    <div class="list-group list-group-flush">
+        @foreach (var l in Model)
+        {
+            var active = (selectedId.HasValue && selectedId.Value == l.WordListId) ? "active" : "";
+            <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center @active"
+               asp-controller="Browse" asp-action="List" asp-route-id="@l.WordListId">
+                <span>@l.Name</span>
+                <span class="badge text-bg-primary">@l.WordCount</span>
+            </a>
+        }
+    </div>
+</div>
+

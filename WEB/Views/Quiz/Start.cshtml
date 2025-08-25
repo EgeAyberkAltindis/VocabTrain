@@ -1,0 +1,58 @@
+﻿@model WEB.Models.ViewModels.StartQuizViewModel
+@using MODEL.Entities
+@{
+    ViewData["Title"] = "Quiz Başlat";
+}
+
+<div class="card">
+    <div class="card-header fw-semibold">Quiz Başlat</div>
+    <div class="card-body">
+        <form asp-action="Start" method="post" novalidate>
+            @Html.AntiForgeryToken()
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label asp-for="SelectedListId" class="form-label">Liste</label>
+                    <select asp-for="SelectedListId" class="form-select" required>
+                        <option value="">-- Liste seçin --</option>
+                        @foreach (var l in Model.Lists)
+                        {
+                            <option value="@l.WordListId">@l.Name (@l.WordCount)</option>
+                        }
+                    </select>
+                    <span asp-validation-for="SelectedListId" class="text-danger"></span>
+                </div>
+
+                <div class="col-md-3">
+                    <label asp-for="Mode" class="form-label">Mod</label>
+                    <select asp-for="Mode" class="form-select">
+                        <option value="@QuizMode.EnglishToTurkish">EN → TR</option>
+                        <option value="@QuizMode.TurkishToEnglish">TR → EN</option>
+                    </select>
+                </div>
+
+                
+
+                <div class="col-md-3">
+                    <label asp-for="SeedCount" class="form-label">Soru Çekirdeği</label>
+                    <input asp-for="SeedCount" type="number" min="4" max="50" class="form-control" />
+                    <span asp-validation-for="SeedCount" class="text-danger"></span>
+                </div>
+            </div>
+
+            <div class="mt-3">
+                <button type="submit" class="btn btn-primary">Başlat</button>
+            </div>
+        </form>
+
+        @if (!string.IsNullOrWhiteSpace(Model.Message))
+        {
+            <div class="alert alert-info mt-3">@Model.Message</div>
+        }
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

@@ -1,0 +1,34 @@
+﻿@model WEB.Models.ViewModels.QuizSummaryViewModel
+@{
+    ViewData["Title"] = "Quiz Özeti";
+}
+
+<div class="card">
+    <div class="card-header fw-semibold">Quiz Özeti</div>
+    <div class="card-body">
+        <div class="row g-3 mb-3">
+            <div class="col-sm-4"><div class="alert alert-secondary mb-0"><strong>Toplam Gösterim:</strong> @Model.Summary.TotalShown</div></div>
+            <div class="col-sm-4"><div class="alert alert-success mb-0"><strong>Doğru:</strong> @Model.Summary.CorrectCount</div></div>
+            <div class="col-sm-4"><div class="alert alert-danger mb-0"><strong>Yanlış:</strong> @Model.Summary.WrongCount</div></div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-striped align-middle mb-0">
+                <thead class="table-light">
+                    <tr><th>English</th><th>Gösterim</th><th>Doğru</th><th>Yanlış</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model.Summary.Items)
+                    {
+                        <tr>
+                            <td class="fw-semibold">@item.EnglishText</td>
+                            <td>@item.TimesShown</td>
+                            <td class="text-success fw-semibold">@item.Correct</td>
+                            <td class="text-danger fw-semibold">@item.Wrong</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

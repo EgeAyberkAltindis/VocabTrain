@@ -1,0 +1,44 @@
+﻿@model WEB.Models.ViewModels.WordImportViewModel
+@{
+    ViewData["Title"] = "Kelime Ekle (Tek)";
+}
+
+<div class="card">
+    <div class="card-header fw-semibold">Kelime Ekle (Tek)</div>
+    <div class="card-body">
+        <form asp-action="Import" method="post" novalidate>
+            @Html.AntiForgeryToken()
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+
+            <div class="mb-3">
+                <label asp-for="TargetListName" class="form-label"></label>
+                <input asp-for="TargetListName" class="form-control" />
+                <span asp-validation-for="TargetListName" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Raw" class="form-label"></label>
+                <textarea asp-for="Raw" rows="7" class="form-control"></textarea>
+                <span asp-validation-for="Raw" class="text-danger"></span>
+                <div class="form-text">
+                    Örnek:<br />
+                    <code>Drastically : büyük ölçüde, ciddi şekilde, şiddetle</code><br />
+                    <code>significantly, severely, dramatically, extremely</code><br />
+                    <code>The new regulations... / After moving...</code>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Kaydet</button>
+        </form>
+
+        @if (!string.IsNullOrWhiteSpace(Model.Message))
+        {
+            <div class="alert alert-success mt-3">@Model.Message</div>
+        }
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
+

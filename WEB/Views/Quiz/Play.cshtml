@@ -1,0 +1,338 @@
+﻿@model WEB.Models.ViewModels.PlayQuizViewModel
+@{
+    ViewData["Title"] = "Quiz";
+    
+}
+@Html.AntiForgeryToken()
+
+
+<input type="hidden" id="quizRunId" value="@Model.QuizRunId" />
+<input type="hidden" id="initialMode" value="@((int)Model.Mode)" />  @* 0=EN→TR, 1=TR→EN *@
+
+<div class="card shadow-sm border-0">
+    <div class="card-header d-flex align-items-center justify-content-between">
+        <div class="fw-semibold">Quiz</div>
+        <div class="btn-group" role="group" aria-label="Mode switch">
+            <button type="button" class="btn btn-outline-secondary" id="btnModeENTR">EN → TR</button>
+            <button type="button" class="btn btn-outline-secondary" id="btnModeTREN">TR → EN</button>
+        </div>
+    </div>
+
+    <div class="card-body">
+        <div class="mb-3">
+            <div class="form-label"><strong>Soru</strong></div>
+            <div id="prompt" class="fs-5">Yükleniyor...</div>
+        </div>
+
+        <form id="answerForm" onsubmit="return false;">
+            <div id="options" class="list-group mb-3"></div>
+
+            <!-- İPUCU ALANI -->
+            <div class="border rounded p-3 mb-3 bg-light">
+                <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center">
+                    <div class="btn-group" role="group" aria-label="Hints">
+                        <button type="button" id="btnShowMeanings" class="btn btn-outline-info">
+                            <i class="bi bi-lightbulb"></i> İpucu: Anlamlar
+                        </button>
+                        <button type="button" id="btnShowSynonyms" class="btn btn-outline-warning">
+                            <i class="bi bi-shuffle"></i> İpucu: Eş anlamlar
+                        </button>
+                    </div>
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="pinMeanings">
+                            <label class="form-check-label" for="pinMeanings" title="Her soruda Anlamlar ipucunu açık tut">Anlamlar sabit</label>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="pinSynonyms">
+                            <label class="form-check-label" for="pinSynonyms" title="Her soruda Eş anlamlar ipucunu açık tut">Eş anlamlar sabit</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="hintsArea" class="mt-3">
+                    <div id="hintMeanings" class="d-none">
+                        <div class="alert alert-info py-2 mb-2">
+                            <div class="fw-semibold mb-1"><i class="bi bi-lightbulb"></i> Anlamlar</div>
+                            <div id="hintMeaningsContent" class="text-body"></div>
+                        </div>
+                    </div>
+
+                    <div id="hintSynonyms" class="d-none">
+                        <div class="alert alert-warning py-2 mb-0">
+                            <div class="fw-semibold mb-1"><i class="bi bi-shuffle"></i> Eş anlamlar</div>
+                            <div id="hintSynonymsContent" class="text-body"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button id="submitBtn" type="button" class="btn btn-success" disabled>
+                    <i class="bi bi-check-lg"></i> Cevapla
+                </button>
+                <button id="nextBtn" type="button" class="btn btn-outline-primary" disabled>
+                    <i class="bi bi-arrow-right"></i> Sıradaki Soru
+                </button>
+            </div>
+        </form>
+
+
+        <div id="feedback" class="mt-3 quiz-feedback"></div>
+    </div>
+</div>
+
+<form id="finishForm" asp-action="Finish" method="post" class="mt-3">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="quizRunId" value="@Model.QuizRunId" />
+    <button type="submit" class="btn btn-outline-secondary">
+        <i class="bi bi-flag"></i> Quizi Bitir
+    </button>
+</form>
+
+@section Scripts {
+        
+    <script>
+        let autoNextTimer = null;
+        const runId = document.getElementById('quizRunId').value;
+        const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+        const initialMode = parseInt(document.getElementById('initialMode').value, 10); // 0|1
+
+        let currentEnglishWordId = 0;
+        let currentOptions = [];
+        let stickyMeanings = false; // kalıcı açık mı?
+        let stickySynonyms = false;
+
+        let lastHintWordId = 0;
+        let lastHints = null; // cache: { turkishMeanings:[], synonyms:[] }
+
+        function setModeButtons(activeKey) {
+          document.getElementById('btnModeENTR').classList.toggle('btn-primary', activeKey==='ENTR');
+          document.getElementById('btnModeENTR').classList.toggle('btn-outline-secondary', activeKey!=='ENTR');
+          document.getElementById('btnModeTREN').classList.toggle('btn-primary', activeKey==='TREN');
+          document.getElementById('btnModeTREN').classList.toggle('btn-outline-secondary', activeKey!=='TREN');
+        }
+
+        function renderQuestion(q){
+          document.getElementById('prompt').innerText = q.prompt;
+          currentEnglishWordId = q.englishWordId;
+          currentOptions = q.options || [];
+
+          const box = document.getElementById('options');
+          box.innerHTML = '';
+          currentOptions.forEach((opt, idx)=>{
+            const id = 'opt_' + idx;
+            const item = document.createElement('label');
+            item.className = 'list-group-item d-flex align-items-center gap-2';
+            item.innerHTML = `<input class="form-check-input me-1" type="radio" name="opt" value="${opt}" id="${id}"> ${opt}`;
+            box.appendChild(item);
+                  
+
+          document.getElementById('submitBtn').disabled = currentOptions.length !== 4;
+          document.getElementById('nextBtn').disabled = true;
+          document.getElementById('feedback').innerHTML = '';
+
+          // İpucu panellerini sıfırla
+          hideHint('meanings');
+          hideHint('synonyms');
+
+          // Kalıcı (pin) açık ise yeni soruda otomatik göster
+          if (stickyMeanings) showHint('meanings');
+          if (stickySynonyms) showHint('synonyms');
+           if (autoNextTimer) { clearTimeout(autoNextTimer); autoNextTimer = null; } // << ekle
+        document.getElementById('feedback').innerHTML = '';
+                });
+        }
+
+                async function loadNext(){
+          // Önce olası bekleyen zamanlayıcıyı iptal et
+          if (autoNextTimer) { clearTimeout(autoNextTimer); autoNextTimer = null; }
+
+          const promptEl = document.getElementById('prompt');
+          const optsEl   = document.getElementById('options');
+          const fbEl     = document.getElementById('feedback');
+
+          promptEl.innerText = 'Yükleniyor...';
+          optsEl.innerHTML   = '';
+          fbEl.innerHTML     = '';
+          document.getElementById('submitBtn').disabled = true;
+          document.getElementById('nextBtn').disabled   = true;
+
+          const resp = await fetch(`/Quiz/Next?quizRunId=${runId}`, { credentials:'same-origin' });
+          const q = await resp.json();
+          if (!q){
+            promptEl.innerText = 'Soru bulunamadı.';
+            return;
+          }
+          renderQuestion(q); // renderQuestion içinde butonlar tekrar aktif edilir
+        }
+
+        async function submitAnswer(){
+          const checked = document.querySelector('input[name="opt"]:checked');
+          if (!checked) return;
+
+          document.getElementById('submitBtn').disabled = true;
+
+          const selectedText = checked.value;
+
+          // Seçenekleri kilitle (yanlışlıkla tekrar tıklanmasın)
+          document.querySelectorAll('input[name="opt"]').forEach(r => r.disabled = true);
+
+          const resp = await fetch('/Quiz/Answer', {
+            method:'POST',
+            headers: { 'Content-Type':'application/json', 'RequestVerificationToken': token },
+            credentials:'same-origin',
+            body: JSON.stringify({ quizRunId: parseInt(runId), englishWordId: currentEnglishWordId, selectedText })
+          });
+
+          const r  = await resp.json();
+          const fb = document.getElementById('feedback');
+
+          // Önce tüm şıkların eski durumlarını temizle
+          document.querySelectorAll('#options .list-group-item').forEach(li=>{
+            li.classList.remove('list-group-item-success','list-group-item-danger');
+            const st = li.querySelector('.option-status');
+            if (st) st.innerHTML = '';
+          });
+
+          // Seçili satır
+          const selectedLi = checked.closest('.list-group-item');
+
+          if (r.isCorrect){
+            // Üste görünür feedback
+            fb.innerHTML = `<div class="alert alert-success mb-0">
+              <i class="bi bi-emoji-smile"></i> Doğru!
+              <span class="ms-2 small">2 sn içinde sonraki soruya geçiliyor…</span>
+            </div>`;
+
+            // Seçili şıkta yeşil arka plan + tik
+            if (selectedLi){
+              selectedLi.classList.add('list-group-item-success');
+              const st = selectedLi.querySelector('.option-status');
+              if (st) st.innerHTML = `<i class="bi bi-check-circle-fill"></i>`;
+            }
+
+            // Elle geçişe gerek yok
+            document.getElementById('nextBtn').disabled = true;
+
+            // 2 saniye sonra otomatik sonraki soru
+            if (autoNextTimer) clearTimeout(autoNextTimer);
+            autoNextTimer = setTimeout(()=> { loadNext(); }, 2000);
+
+          } else {
+            fb.innerHTML = `<div class="alert alert-danger mb-0">
+              <i class="bi bi-emoji-frown"></i> Yanlış.
+              Doğru cevap: <strong>${r.correctAnswer}</strong>
+            </div>`;
+
+            // Seçili şık kırmızı + çarpı
+            if (selectedLi){
+              selectedLi.classList.add('list-group-item-danger');
+              const st1 = selectedLi.querySelector('.option-status');
+              if (st1) st1.innerHTML = `<i class="bi bi-x-circle-fill"></i>`;
+            }
+            // Doğru şıkkı yeşil + tik ile işaretle
+            const correctLi = Array.from(document.querySelectorAll('#options .list-group-item'))
+              .find(li => li.querySelector('input[name="opt"]')?.value === r.correctAnswer);
+            if (correctLi){
+              correctLi.classList.add('list-group-item-success');
+              const st2 = correctLi.querySelector('.option-status');
+              if (st2) st2.innerHTML = `<i class="bi bi-check-circle-fill"></i>`;
+            }
+
+            // Yanlışta kullanıcı isterse Next'e basabilsin
+            document.getElementById('nextBtn').disabled = false;
+          }
+        }
+
+        // ---- İPUCU YARDIMCILARI ----
+        async function ensureHintsLoaded(){
+          if (lastHintWordId === currentEnglishWordId && lastHints) return lastHints;
+          const resp = await fetch(`/Quiz/Hints?quizRunId=${runId}&englishWordId=${currentEnglishWordId}`, { credentials:'same-origin' });
+          const data = await resp.json(); // { turkishMeanings, synonyms }
+          lastHintWordId = currentEnglishWordId;
+          lastHints = data;
+          return data;
+        }
+
+        function showHint(which){
+          if (which === 'meanings'){
+            document.getElementById('hintMeanings').classList.remove('d-none');
+            // içerik dolu mu?
+            const cont = document.getElementById('hintMeaningsContent');
+            if (!cont.dataset.forId || parseInt(cont.dataset.forId) !== currentEnglishWordId){
+              cont.innerHTML = 'Yükleniyor…';
+              ensureHintsLoaded().then(h=>{
+                cont.dataset.forId = String(currentEnglishWordId);
+                    cont.innerHTML = (h.meanings && h.meanings.length)
+                     ? h.meanings.map(x=>`<span class="badge text-bg-info me-1 mb-1">${x}</span>`).join('')
+                       : '<span class="text-body-secondary">Anlam bulunamadı.</span>';
+
+              });
+            }
+          } else {
+            document.getElementById('hintSynonyms').classList.remove('d-none');
+            const cont = document.getElementById('hintSynonymsContent');
+            if (!cont.dataset.forId || parseInt(cont.dataset.forId) !== currentEnglishWordId){
+              cont.innerHTML = 'Yükleniyor…';
+              ensureHintsLoaded().then(h=>{
+                cont.dataset.forId = String(currentEnglishWordId);
+                cont.innerHTML = (h.synonyms && h.synonyms.length)
+                  ? h.synonyms.map(x=>`<span class="badge text-bg-warning text-dark me-1 mb-1">${x}</span>`).join('')
+                  : '<span class="text-body-secondary">Eş anlam bulunamadı.</span>';
+              });
+            }
+          }
+        }
+
+        function hideHint(which){
+          if (which === 'meanings'){
+            document.getElementById('hintMeanings').classList.add('d-none');
+          } else {
+            document.getElementById('hintSynonyms').classList.add('d-none');
+          }
+        }
+
+        // ---- Mod değiştir (bir sonraki sorudan itibaren) ----
+        async function changeMode(newKey){
+          const modeVal = (newKey === 'ENTR') ? 0 : 1;
+          await fetch('/Quiz/ChangeMode', {
+            method:'POST',
+            headers:{ 'Content-Type':'application/json', 'RequestVerificationToken': token },
+            credentials:'same-origin',
+            body: JSON.stringify({ quizRunId: parseInt(runId), mode: modeVal })
+          });
+          setModeButtons(newKey);
+          loadNext();
+        }
+
+        // ---- Event bağlama ----
+        document.getElementById('submitBtn').addEventListener('click', submitAnswer);
+        document.getElementById('nextBtn').addEventListener('click', loadNext);
+        document.getElementById('btnModeENTR').addEventListener('click', ()=> changeMode('ENTR'));
+        document.getElementById('btnModeTREN').addEventListener('click', ()=> changeMode('TREN'));
+
+        document.getElementById('btnShowMeanings').addEventListener('click', ()=>{
+          const el = document.getElementById('hintMeanings');
+          if (el.classList.contains('d-none')) showHint('meanings'); else hideHint('meanings');
+        });
+        document.getElementById('btnShowSynonyms').addEventListener('click', ()=>{
+          const el = document.getElementById('hintSynonyms');
+          if (el.classList.contains('d-none')) showHint('synonyms'); else hideHint('synonyms');
+        });
+
+        // Kalıcı switch'ler
+        document.getElementById('pinMeanings').addEventListener('change', (e)=>{
+          stickyMeanings = e.target.checked;
+          if (stickyMeanings) showHint('meanings'); else hideHint('meanings');
+        });
+        document.getElementById('pinSynonyms').addEventListener('change', (e)=>{
+          stickySynonyms = e.target.checked;
+          if (stickySynonyms) showHint('synonyms'); else hideHint('synonyms');
+        });
+
+        // Başlangıç
+        setModeButtons(initialMode === 0 ? 'ENTR' : 'TREN');
+        loadNext();
+    </script>
+}

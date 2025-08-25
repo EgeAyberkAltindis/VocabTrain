@@ -1,0 +1,69 @@
+﻿@model WEB.Models.ViewModels.BulkWordImportViewModel
+@{
+    ViewData["Title"] = "Kelime Ekle (Çoklu)";
+}
+
+<div class="container py-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-4">
+            <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Ana Sayfa</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Kelime Ekle (Çoklu)</li>
+        </ol>
+    </nav>
+
+    <div class="card shadow-sm rounded-4">
+        <div class="card-header bg-primary text-white d-flex align-items-center justify-content-between">
+            <span class="fw-semibold">📥 Kelime Ekle (Çoklu)</span>
+            <small class="opacity-75">Bloklar arası bir boş satır</small>
+        </div>
+
+        <div class="card-body">
+            <form asp-action="ImportBulk" method="post" class="needs-validation" novalidate>
+                @Html.AntiForgeryToken()
+
+                <div class="row g-3">
+                    <div class="col-12 col-md-6">
+                        <label class="form-label" for="TargetListName">Hedef Liste Adı <span class="text-muted">(opsiyonel)</span></label>
+                        <input asp-for="TargetListName" class="form-control" id="TargetListName" placeholder="Örn: B2-Travel" />
+                        <div class="form-text">Belirtmezsen varsayılan listeye eklenir.</div>
+                        <span asp-validation-for="TargetListName" class="text-danger"></span>
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label" for="Raw">Girdi</label>
+                        <textarea asp-for="Raw" class="form-control font-monospace" id="Raw" rows="12" placeholder="Intricate : karmaşık, detaylı
+synonyms
+The mechanism has an intricate design / She explained the intricate process clearly.
+
+Tremendous : muazzam, çok büyük
+synonyms
+The project was a tremendous success / He showed tremendous effort during training."></textarea>
+                        <div class="d-flex gap-3 small text-muted mt-1">
+                            <span>• Her blok: <em>Kelime : anlamlar</em> ⏎ <em>eş anlamlılar</em> ⏎ <em>cümle 1 / cümle 2</em></span>
+                            <span>• Bloklar arasında <strong>bir boş satır</strong> bırak</span>
+                        </div>
+                        <span asp-validation-for="Raw" class="text-danger"></span>
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2 mt-4">
+                    <button type="submit" class="btn btn-primary px-4">Kaydet</button>
+                    <button type="button" class="btn btn-outline-secondary" onclick="document.getElementById('Raw').value='';">Temizle</button>
+                </div>
+            </form>
+
+            @if (!string.IsNullOrWhiteSpace(Model.Message))
+            {
+                <div class="alert alert-info mt-4 mb-0 rounded-3">
+                    <strong>Bilgi:</strong> @Model.Message
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
+
+

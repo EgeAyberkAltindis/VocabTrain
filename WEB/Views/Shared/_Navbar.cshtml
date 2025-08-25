@@ -1,0 +1,17 @@
+﻿<nav class="navbar navbar-expand-lg bg-body-tertiary border-bottom">
+    <div class="container">
+        <a class="navbar-brand fw-semibold" asp-controller="Browse" asp-action="Index">KelimeProjesi</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#topnav" aria-controls="topnav" aria-expanded="false" aria-label="Menü">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="topnav">
+            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                <li class="nav-item"><a class="nav-link" asp-controller="Browse" asp-action="Index"><i class="bi bi-list-ul"></i> Listeler</a></li>
+                <li class="nav-item"><a class="nav-link" asp-controller="Words" asp-action="Import"><i class="bi bi-plus-square"></i> Kelime Ekle</a></li>
+                <li class="nav-item "><a class="nav-link" asp-controller="Words" asp-action="ImportBulk"><i class="bi bi-plus-square"></i> Kelimeler Ekle</a></li>
+                <li class="nav-item"><a class="nav-link" asp-controller="Quiz" asp-action="Start"><i class="bi bi-mortarboard"></i> Quiz</a></li>
+            </ul>
+        </div>
+    </div>
+</nav>
+

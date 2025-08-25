@@ -1,0 +1,95 @@
+﻿@model List<BLL.DTO.ListWithCountDto>
+@{
+    var current = (BLL.DTO.ListWithCountDto)ViewBag.CurrentList;
+    ViewBag.SelectedListId = current.WordListId;   // partial'a aktif id
+    ViewData["Title"] = "Liste: " + current.Name;
+}
+
+<div class="row g-4">
+    <!-- Sidebar -->
+    <div class="col-lg-3">
+        @await Html.PartialAsync("_SidebarLists", Model)
+    </div>
+
+    <!-- Content -->
+    <div class="col-lg-9">
+        <div class="card shadow-sm border-0">
+            <!-- 🔽🔽🔽 BURASI GÜNCELLENDİ -->
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <div class="fw-semibold">@current.Name</div>
+                <div class="d-flex align-items-center gap-2">
+                    <a class="btn btn-outline-success btn-sm"
+                       asp-action="Export" asp-route-id="@current.WordListId">
+                        <i class="bi bi-file-earmark-excel"></i> Excel’e aktar
+                    </a>
+                    <span class="badge text-bg-primary">@current.WordCount</span>
+                </div>
+            </div>
+            <!-- 🔼🔼🔼 -->
+
+            <div class="card-body border-0 p-0">
+                <div class="p-3 border-bottom">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        <input id="searchBox" class="form-control" placeholder="Bu liste içinde ara...">
+                    </div>
+                </div>
+
+                <div id="results" class="p-3">İlk kayıtlar yükleniyor...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        let timer=null;
+        const results = document.getElementById('results');
+        const box = document.getElementById('searchBox');
+        const listId = @current.WordListId
+
+        box.addEventListener('input', ()=> {
+          clearTimeout(timer);
+          const q = box.value.trim();
+          timer = setTimeout(()=> doSearch(q || '', listId), 250);
+        });
+
+        async function doSearch(q, listId){
+          const resp = await fetch(`/Browse/Search?q=${encodeURIComponent(q)}&listId=${listId}`, { credentials:'same-origin' });
+          const data = await resp.json();
+          renderResultsTable(data);
+        }
+
+        function renderResultsTable(items){
+          if (!items || !items.length){
+            results.innerHTML = `<div class="alert alert-warning mb-0">Sonuç yok.</div>`;
+            return;
+          }
+          let html = `
+          <div class="table-responsive">
+            <table class="table table-hover table-striped align-middle mb-0">
+              <thead class="table-light">
+                <tr><th>English</th><th>Türkçe</th><th>Eş anlam</th><th>Cümleler</th></tr>
+              </thead>
+              <tbody>`;
+          items.forEach(it=>{
+            const trs = (it.turkishMeanings||[]).join(', ');
+            const syn = (it.synonyms||[]).join(', ');
+            const sen = (it.exampleSentences||[]).map(s=>`<div class="text-body-secondary">${s}</div>`).join('');
+            html += `<tr>
+              <td class="fw-semibold">${it.englishText}</td>
+              <td>${trs||'-'}</td>
+              <td>${syn||'-'}</td>
+              <td>${sen||'-'}</td>
+            </tr>`;
+          });
+          html += `</tbody></table></div>`;
+          results.innerHTML = html;
+        }
+
+        doSearch('', listId);
+    </script>
+}
+
+
+
