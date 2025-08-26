@@ -93,6 +93,15 @@ namespace WEB.Controllers
             var n = Regex.Replace(name, @"[^\w\-. ]+", "_", RegexOptions.CultureInvariant);
             return string.IsNullOrWhiteSpace(n) ? "export.xlsx" : n;
         }
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeleteList(int id, CancellationToken ct)
+        {
+            await _listService.DeleteAsync(id, ct);
+            TempData["Toast"] = "Liste silindi.";
+            return RedirectToAction(nameof(Index)); // tüm listelerin olduğu sayfa
+        }
+
     }
 }
     

@@ -118,6 +118,14 @@ namespace BLL.Services.Concretes
 
             return (list.Name, items);
         }
+        public async Task DeleteAsync(int wordListId, CancellationToken ct = default)
+        {
+            var list = await _uow.WordLists.GetByIdAsync(wordListId, ct)
+                       ?? throw new InvalidOperationException("Liste bulunamadı.");
+            // Sadece liste ve bağları gider; EnglishWord/WordStats aynen kalır
+            _uow.WordLists.Remove(list);
+            await _uow.SaveChangesAsync(ct);
+        }
     }
 }
 

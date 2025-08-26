@@ -155,7 +155,14 @@ namespace WEB.Controllers
             await _quizService.SetRunPracticeAsync(id, value, ct);
             return RedirectToAction(nameof(Run), new { id });
         }
-
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeleteRun(int id, CancellationToken ct)
+        {
+            await _quizService.DeleteRunAsync(id, ct);
+            TempData["Toast"] = "Quiz geçmişi silindi.";
+            return RedirectToAction(nameof(History));
+        }
 
 
     }

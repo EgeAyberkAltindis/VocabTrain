@@ -16,5 +16,6 @@ namespace BLL.Services.Abstract
 
         Task<List<ListWithCountDto>> GetAllWithCountsAsync(CancellationToken ct = default);
         Task<(string ListName, List<WordExportDto> Items)> GetForExportAsync(int wordListId, CancellationToken ct = default);
+        Task DeleteAsync(int wordListId, CancellationToken ct = default);
     }
 }

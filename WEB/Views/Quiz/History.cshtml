@@ -22,9 +22,20 @@
                         <td class="text-end">
                             <a class="btn btn-sm btn-outline-secondary" asp-action="Run" asp-route-id="@r.QuizRunId">Detay</a>
                         </td>
+                        <td class="text-end">
+                            <form asp-action="DeleteRun" method="post" class="d-inline"
+                                  onsubmit="return confirm('Bu quiz kaydını silmek istediğinize emin misiniz? Global istatistikler etkilenmez.');">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="id" value="@r.QuizRunId" />
+                                <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i> Sil</button>
+                            </form>
+                        </td>
+
                     </tr>
+
                 }
             </tbody>
+
         </table>
     </div>
 </div>

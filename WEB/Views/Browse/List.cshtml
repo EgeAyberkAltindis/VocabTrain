@@ -17,12 +17,26 @@
             <!-- 🔽🔽🔽 BURASI GÜNCELLENDİ -->
             <div class="card-header d-flex align-items-center justify-content-between">
                 <div class="fw-semibold">@current.Name</div>
-                <div class="d-flex align-items-center gap-2">
-                    <a class="btn btn-outline-success btn-sm"
-                       asp-action="Export" asp-route-id="@current.WordListId">
-                        <i class="bi bi-file-earmark-excel"></i> Excel’e aktar
-                    </a>
-                    <span class="badge text-bg-primary">@current.WordCount</span>
+
+                <div class="card-header d-flex align-items-center justify-content-between">
+                    <div class="fw-semibold">@current.Name</div>
+                    <div class="d-flex align-items-center gap-2">
+                        <a class="btn btn-outline-success btn-sm"
+                           asp-action="Export" asp-route-id="@current.WordListId">
+                            <i class="bi bi-file-earmark-excel"></i> Excel’e aktar
+                        </a>
+
+                        <form asp-action="DeleteList" method="post" class="d-inline"
+                              onsubmit="return confirm('Bu listeyi silmek istediğinize emin misiniz? Kelimeler silinmeyecek.');">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="id" value="@current.WordListId" />
+                            <button type="submit" class="btn btn-outline-danger btn-sm">
+                                <i class="bi bi-trash"></i> Listeyi Sil
+                            </button>
+                        </form>
+
+                        <span class="badge text-bg-primary">@current.WordCount</span>
+                    </div>
                 </div>
             </div>
             <!-- 🔼🔼🔼 -->
