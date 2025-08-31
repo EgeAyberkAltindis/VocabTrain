@@ -24,6 +24,10 @@ namespace BLL.Services.Abstract
         Task SetRunPracticeAsync(int quizRunId, bool isPractice, CancellationToken ct = default);
         Task DeleteRunAsync(int quizRunId, CancellationToken ct = default);
 
+        Task<Dictionary<DateOnly, int>> GetDailyCountsForMonthAsync(int year, int month, string timeZoneId, CancellationToken ct = default);
+        Task<List<QuizRunSummaryDto>> GetRunsForDayAsync(DateOnly day, string timeZoneId, CancellationToken ct = default);
+
+
     }
 
 }

@@ -1,5 +1,7 @@
 ﻿using BLL.DTO;
 
+using Microsoft.EntityFrameworkCore;
+
 using BLL.Services.Abstract;
 using DAL.Repository.Abstract;
 using Microsoft.EntityFrameworkCore;
@@ -15,6 +17,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using static BLL.DTO.QuizDtos;
+using TimeZoneConverter;
 
 namespace BLL.Services.Concretes
 {
@@ -547,6 +550,85 @@ namespace BLL.Services.Concretes
             // Attempts cascade ile silinir; WordStats'a dokunmuyoruz
             _uow.QuizRuns.Remove(run);
             await _uow.SaveChangesAsync(ct);
+        }
+
+        private static TimeZoneInfo ResolveTz(string tz)
+        {
+            try { return TimeZoneInfo.FindSystemTimeZoneById(tz); }
+            catch
+            { // Windows vs Linux uyumu
+                try { return TZConvert.GetTimeZoneInfo(tz); } catch { return TimeZoneInfo.Utc; }
+            }
+        }
+
+        public async Task<Dictionary<DateOnly, int>> GetDailyCountsForMonthAsync(int year, int month, string timeZoneId, CancellationToken ct = default)
+        {
+            var tz = ResolveTz(timeZoneId);
+            var firstLocal = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Unspecified);
+            var nextMonthLocal = firstLocal.AddMonths(1);
+
+            var startUtc = TimeZoneInfo.ConvertTimeToUtc(firstLocal, tz);
+            var endUtc = TimeZoneInfo.ConvertTimeToUtc(nextMonthLocal, tz);
+
+            // Ay içindeki tüm run'lar
+            var runs = await _uow.QuizRuns.Query().AsNoTracking()
+                .Where(r => r.StartedAt >= startUtc && r.StartedAt < endUtc)
+                .Select(r => new { r.Id, r.StartedAt })
+                .ToListAsync(ct);
+
+            // Günü yerel tarihe çevirip grupla
+            var dict = new Dictionary<DateOnly, int>();
+            foreach (var r in runs)
+            {
+                var local = TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(r.StartedAt, DateTimeKind.Utc), tz);
+                var d = DateOnly.FromDateTime(local.Date);
+                dict[d] = dict.TryGetValue(d, out var c) ? c + 1 : 1;
+            }
+            return dict;
+        }
+
+        public async Task<List<QuizRunSummaryDto>> GetRunsForDayAsync(DateOnly day, string timeZoneId, CancellationToken ct = default)
+        {
+            var tz = ResolveTz(timeZoneId);
+            var dayStartLocal = day.ToDateTime(TimeOnly.MinValue); // 00:00
+            var dayEndLocal = day.ToDateTime(TimeOnly.MaxValue); // 23:59:59.9999999
+
+            var startUtc = TimeZoneInfo.ConvertTimeToUtc(dayStartLocal, tz);
+            var endUtc = TimeZoneInfo.ConvertTimeToUtc(dayEndLocal, tz);
+
+            var runs = await _uow.QuizRuns.Query().AsNoTracking()
+                .Where(r => r.StartedAt >= startUtc && r.StartedAt <= endUtc)
+                .OrderBy(r => r.StartedAt)
+                .ToListAsync(ct);
+
+            var listIds = runs.Select(r => r.WordListId).Distinct().ToList();
+            var lists = await _uow.WordLists.Query().AsNoTracking()
+                .Where(l => listIds.Contains(l.Id))
+                .Select(l => new { l.Id, l.Name })
+                .ToListAsync(ct);
+            var listMap = lists.ToDictionary(x => x.Id, x => x.Name);
+
+            var runIds = runs.Select(r => r.Id).ToList();
+            var stats = await _uow.QuizAttempts.Query().AsNoTracking()
+                .Where(a => runIds.Contains(a.QuizRunId))
+                .GroupBy(a => a.QuizRunId)
+                .Select(g => new { RunId = g.Key, Total = g.Count(), Correct = g.Count(x => x.IsCorrect), Wrong = g.Count(x => !x.IsCorrect) })
+                .ToListAsync(ct);
+            var statMap = stats.ToDictionary(x => x.RunId, x => x);
+
+            return runs.Select(r => new QuizRunSummaryDto
+            {
+                QuizRunId = r.Id,
+                ListName = listMap.TryGetValue(r.WordListId, out var n) ? n : $"List {r.WordListId}",
+                StartedAt = TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(r.StartedAt, DateTimeKind.Utc), tz),
+                FinishedAt = r.FinishedAt.HasValue ? TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(r.FinishedAt.Value, DateTimeKind.Utc), tz) : null,
+                IsPractice = r.IsPractice,
+                Mode = r.Mode,
+                SeedCount = r.SeedCount,
+                TotalShown = statMap.TryGetValue(r.Id, out var s) ? s.Total : 0,
+                Correct = statMap.TryGetValue(r.Id, out var s1) ? s1.Correct : 0,
+                Wrong = statMap.TryGetValue(r.Id, out var s2) ? s2.Wrong : 0
+            }).ToList();
         }
 
     }

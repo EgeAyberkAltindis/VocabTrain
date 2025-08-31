@@ -217,7 +217,7 @@
 
             // 2 saniye sonra otomatik sonraki soru
             if (autoNextTimer) clearTimeout(autoNextTimer);
-            autoNextTimer = setTimeout(()=> { loadNext(); }, 2000);
+            autoNextTimer = setTimeout(()=> { loadNext(); }, 1000);
 
           } else {
             fb.innerHTML = `<div class="alert alert-danger mb-0">

@@ -1,0 +1,239 @@
+﻿
+@using WEB.Models.ViewModels
+@model CalendarViewModel
+@using System.Globalization
+@{
+    ViewData["Title"] = "Quiz Geçmişi – Takvim";
+    var tr = CultureInfo.GetCultureInfo("tr-TR");
+    var y = Model.Year; var m = Model.Month;
+    var monthTitle = new DateTime(y, m, 1).ToString("MMMM yyyy", tr);
+    var prev = new DateTime(y, m, 1).AddMonths(-1);
+    var next = new DateTime(y, m, 1).AddMonths(1);
+}
+
+<div class="row g-4">
+    <!-- Sol: Takvim -->
+    <div class="col-lg-5">
+        <div class="card shadow-sm">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <a class="btn btn-sm btn-outline-secondary"
+                   asp-action="Calendar" asp-route-year="@prev.Year" asp-route-month="@prev.Month" asp-route-date="@Model.SelectedDay.ToString("yyyy-MM-dd")">
+                    <i class="bi bi-chevron-left"></i>
+                </a>
+                <div class="fw-semibold">@monthTitle</div>
+                <a class="btn btn-sm btn-outline-secondary"
+                   asp-action="Calendar" asp-route-year="@next.Year" asp-route-month="@next.Month" asp-route-date="@Model.SelectedDay.ToString("yyyy-MM-dd")">
+                    <i class="bi bi-chevron-right"></i>
+                </a>
+            </div>
+
+            <div class="card-body">
+                <div class="cal-weekdays mb-2 text-center text-secondary small fw-semibold">
+                    <div>Pzt</div><div>Sal</div><div>Çar</div><div>Per</div><div>Cum</div><div>Cmt</div><div>Paz</div>
+                </div>
+
+                <div class="cal-grid">
+                    @foreach (var cell in Model.Days)
+                    {
+                        // Isı tonu: 0=none, 1-2=light, 3-5=medium, 6+=strong
+                        var heat = cell.Count >= 6 ? "heat-3" : (cell.Count >= 3 ? "heat-2" : (cell.Count >= 1 ? "heat-1" : ""));
+                        var cls = $"cal-cell {heat}";
+                        if (!cell.InMonth) cls += " cal-out";
+                        if (cell.IsSelected) cls += " cal-selected";
+                        if (cell.IsToday && !cell.IsSelected) cls += " cal-today";
+
+                        <a class="@cls" data-date="@cell.Date.ToString("yyyy-MM-dd")"
+                           asp-action="Calendar"
+                           asp-route-year="@cell.Date.Year"
+                           asp-route-month="@cell.Date.Month"
+                           asp-route-date="@cell.Date.ToString("yyyy-MM-dd")">
+                            <div class="cal-day">@cell.DayNumber</div>
+                            @if (cell.Count > 0)
+                            {
+                                <div class="cal-count">@cell.Count</div>
+                            }
+                            @if (cell.SpecialAgo.HasValue)
+                            {
+                                <span class="cal-ago badge rounded-pill bg-danger">@cell.SpecialAgo</span>
+                            }
+                        </a>
+                    }
+                </div>
+
+                <div class="mt-3 text-muted small d-flex gap-3 align-items-center">
+                    <span>İşaretler:</span>
+                    <span class="badge bg-danger rounded-pill">1</span>
+                    <span class="badge bg-danger rounded-pill">3</span>
+                    <span class="badge bg-danger rounded-pill">7</span>
+                    <span class="badge bg-danger rounded-pill">15</span>
+                    <span class="ms-auto small">Yoğunluk: <span class="legend heat-1"></span><span class="legend heat-2"></span><span class="legend heat-3"></span></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sağ: Gün şeridi + seçili günün quiz'leri -->
+    <div class="col-lg-7">
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <div class="day-strip overflow-auto no-scrollbar d-flex justify-content-start gap-2">
+                    @foreach (var d in Model.StripDays)
+                    {
+                        var active = d == Model.SelectedDay ? "active" : "";
+                        <a class="btn btn-sm btn-outline-primary @active"
+                           asp-action="Calendar"
+                           asp-route-year="@d.Year"
+                           asp-route-month="@d.Month"
+                           asp-route-date="@d.ToString("yyyy-MM-dd")">
+                            @d.ToString("dd MMM ddd", tr)
+                        </a>
+                    }
+                </div>
+            </div>
+            <div id="runsArea" class="card-body">
+                @await Html.PartialAsync("_RunsOfDay", Model.Runs)
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // (İsteğe bağlı) Sayfa yenilemeden günü yüklemek istersen:
+        document.querySelectorAll('.cal-cell').forEach(el=>{
+          el.addEventListener('click', async (ev)=>{
+            ev.preventDefault();
+            const url = el.getAttribute('href');
+            if (!url) return;
+            // Basit: tam sayfa gitmek (mevcut)
+            window.location.href = url;
+
+            // AJAX istiyorsan yukarıyı yorumla, aşağıdakini aç:
+            // const day = el.dataset.date;
+            // const runsArea = document.getElementById('runsArea');
+            // runsArea.innerHTML = '<div class="text-center text-muted">Yükleniyor…</div>';
+            // const resp = await fetch(`/Quiz/ByDay?day=${day}`, { credentials:'same-origin' });
+            // const html = await resp.text();
+            // runsArea.innerHTML = html;
+            // document.querySelectorAll('.cal-cell').forEach(x => x.classList.remove('cal-selected'));
+            // el.classList.add('cal-selected');
+          });
+        });
+    </script>
+}
+
+<style>
+    /* Grid Yapısı */
+    .cal-weekdays {
+        display: grid;
+        grid-template-columns: repeat(7,1fr);
+        gap: .25rem;
+    }
+
+        .cal-weekdays > div {
+            text-align: center;
+        }
+
+    .cal-grid {
+        display: grid;
+        grid-template-columns: repeat(7,1fr);
+        gap: .5rem;
+    }
+
+    .cal-cell {
+        position: relative;
+        display: block;
+        padding: .75rem;
+        border: 1px solid var(--bs-border-color);
+        border-radius: .75rem;
+        background: var(--bs-body-bg);
+        text-decoration: none;
+        color: inherit;
+        min-height: 72px;
+        transition: all .15s ease;
+    }
+
+        .cal-cell:hover {
+            box-shadow: 0 0.25rem 0.75rem rgba(0,0,0,.06);
+            transform: translateY(-1px);
+        }
+
+    .cal-out {
+        opacity: .45;
+    }
+
+    .cal-selected {
+        border-color: var(--bs-primary);
+        box-shadow: 0 0 0 .2rem rgba(var(--bs-primary-rgb), .15);
+    }
+
+    .cal-today {
+        outline: 2px dashed var(--bs-warning);
+        outline-offset: 2px;
+    }
+
+    .cal-day {
+        font-weight: 700;
+        font-size: 1.1rem;
+    }
+
+    .cal-count {
+        font-size: .8rem;
+        color: var(--bs-secondary-color);
+        margin-top: .25rem;
+    }
+
+    .cal-ago {
+        position: absolute;
+        top: -8px;
+        right: -8px;
+    }
+
+    /* Isı haritası tonalite */
+    .heat-1 {
+        background: rgba(13,110,253,.06);
+    }
+    /* primary-50 */
+    .heat-2 {
+        background: rgba(13,110,253,.12);
+    }
+
+    .heat-3 {
+        background: rgba(13,110,253,.18);
+    }
+
+    .legend {
+        display: inline-block;
+        width: 14px;
+        height: 14px;
+        border-radius: 4px;
+        margin: 0 .1rem;
+        vertical-align: middle;
+    }
+
+        .legend.heat-1 {
+            background: rgba(13,110,253,.12);
+        }
+
+        .legend.heat-2 {
+            background: rgba(13,110,253,.18);
+        }
+
+        .legend.heat-3 {
+            background: rgba(13,110,253,.26);
+        }
+
+    /* Gün şeridi (scrollable chips) */
+    .day-strip .btn {
+        white-space: nowrap;
+    }
+
+    .no-scrollbar::-webkit-scrollbar {
+        display: none;
+    }
+
+    .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+</style>

@@ -12,6 +12,7 @@ namespace WEB.Controllers
     {
         private readonly IListService _listService;
         private readonly IQuizService _quizService;
+        private const string TzId = "Europe/Istanbul"; // projen için sabitleyebiliriz
 
         public QuizController(IListService listService, IQuizService quizService)
         {
@@ -163,8 +164,77 @@ namespace WEB.Controllers
             TempData["Toast"] = "Quiz geçmişi silindi.";
             return RedirectToAction(nameof(History));
         }
+        [HttpGet]
+        public async Task<IActionResult> Calendar(int? year, int? month, DateTime? date, CancellationToken ct)
+        {
+            // Seçimler
+            var nowLocal = TimeZoneInfo.ConvertTime(DateTime.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Europe/Istanbul"));
+            var sel = date?.Date ?? nowLocal.Date;
 
+            int y = year ?? sel.Year;
+            int m = month ?? sel.Month;
 
+            var selected = DateOnly.FromDateTime(sel);
+
+            // Ayın günlük sayımları
+            var counts = await _quizService.GetDailyCountsForMonthAsync(y, m, TzId, ct);
+
+            // Takvim 6x7 grid (Pazartesi ilk sütun)
+            var first = new DateTime(y, m, 1);
+            int offset = ((int)first.DayOfWeek + 6) % 7; // Monday=0
+            var gridStart = first.AddDays(-offset);
+
+            var days = new List<CalendarViewModel.DayCell>(42);
+            for (int i = 0; i < 42; i++)
+            {
+                var d = DateOnly.FromDateTime(gridStart.AddDays(i));
+                counts.TryGetValue(d, out var c);
+                var cell = new CalendarViewModel.DayCell
+                {
+                    Date = d,
+                    InMonth = d.Month == m,
+                    IsToday = d == DateOnly.FromDateTime(nowLocal.Date),
+                    IsSelected = d == selected,
+                    Count = c
+                };
+                // Özel kırmızı yuvarlak: 1/3/7/15 gün önce
+                var ago = (DateOnly.FromDateTime(nowLocal.Date).DayNumber - d.DayNumber);
+                var diff = DateOnly.FromDateTime(nowLocal.Date).ToDateTime(TimeOnly.MinValue) - d.ToDateTime(TimeOnly.MinValue);
+                var daysAgo = (int)diff.TotalDays;
+                if (new[] { 1, 3, 7, 15 }.Contains(daysAgo)) cell.SpecialAgo = daysAgo;
+
+                days.Add(cell);
+            }
+
+            // Gün şeridi (seçili gün +-3)
+            var strip = new List<DateOnly>();
+            for (int i = -3; i <= 3; i++)
+                strip.Add(selected.AddDays(i));
+
+            // Seçili günün run'ları
+            var runs = await _quizService.GetRunsForDayAsync(selected, TzId, ct);
+
+            var vm = new CalendarViewModel
+            {
+                Year = y,
+                Month = m,
+                SelectedDay = selected,
+                Days = days,
+                Runs = runs,
+                StripDays = strip
+            };
+            return View(vm);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ByDay(string day, CancellationToken ct)
+        {
+            if (!DateOnly.TryParse(day, out var d)) return BadRequest();
+            var runs = await _quizService.GetRunsForDayAsync(d, TzId, ct);
+            return PartialView("_RunsOfDay", runs);
+        }
     }
+
 }
+
 
